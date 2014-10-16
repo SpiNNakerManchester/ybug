@@ -33,7 +33,7 @@ use SpiNN::Cmd;
 #-------------------------------------------------------------------------------
 
 
-my $version = "1.30";
+my $version = "1.33";
 
 my $spin;		# SpiNN::Cmd object for SpiNNaker
 my $bmp;		# SpiNN::Cmd object for BMP (or undef)
@@ -81,7 +81,7 @@ sub cmd_boot
 {
     my $cli = shift;
     my $ac = $cli->{arg_c};
-    my $file = "scamp-131.boot";
+    my $file = "scamp.boot";
     my $conf = "";
     if ($ac == 2)
     {
@@ -101,7 +101,7 @@ sub cmd_boot
 	my $s = $spin->ver (addr => []);
 	$s =~ s/ at .*//;
 
-	$spin->iptag_set (0, "0.0.0.0", $TUBE_PORT, addr => []);
+	$spin->iptag_set (0, $TUBE_PORT, host => "0.0.0.0", addr => []);
 
 	print "Booted: $s\n";
     };
@@ -426,7 +426,7 @@ sub dump_heap
     my $heap_first = $data->[1];
 
     my $p = $heap_first;
-
+		 
     while ($p != 0)
     {
 	my $data = $spin->read ($p, 8, unpack => "VV");
@@ -533,7 +533,7 @@ sub cmd_rtr_load
 	die "no room in router heap" if $base == 0;
 
 	$spin->scp_cmd ($CMD_RTR,
-			arg1 => ($size << 16) + 2,
+			arg1 => ($size << 16) + ($app_id << 8) + 2,
 			arg2 => $addr,
 			arg3 => $base);
     };
@@ -545,68 +545,125 @@ sub cmd_rtr_load
 #-------------------------------------------------------------------------------
 
 
-sub cmd_iptag
+my $MIN_TAG = 0; # Bodge!
+my $MAX_TAG = 7;
+
+
+sub ipflag
 {
-    my $cli = shift;
-    my $ac = $cli->{arg_c};
-    my $host = $cli->{arg_v}->[0];
-    my $port = $cli->{arg_n}->[1];
-    my $tag = $cli->{arg_n}->[2];
+    my $flags = shift;
+    my $r = "";
 
-    my $MIN_TAG = 0; # Bodge!
-    my $MAX_TAG = 7;
+    $r .= "T" if $flags & 0x4000;
+    $r .= "A" if $flags & 0x2000;
+    $r .= "R" if $flags & 0x0200;
+    $r .= "S" if $flags & 0x0100;
 
-    $port = $TUBE_PORT unless $ac > 1 && defined $port;
-    return "bad tag" if $ac == 3 && ($tag < $MIN_TAG || $tag > $MAX_TAG);
+    return $r;
+}
 
-    $tag = 0 unless $ac == 3;
 
+sub dump_iptag
+{
     eval
     {
-	if ($ac == 0)
+	my $data = $spin->iptag_tto (255);
+
+	my ($tto, undef, $pool, $fix) = unpack "C4", $data;
+	my $max = $pool + $fix;
+	$tto = (1 << ($tto - 1)) / 100 if $tto;
+
+	print "IPTags=$max (F=$fix, T=$pool), TTO=${tto}s\n\n";
+
+	print "Tag    IP address    TxPort RxPort  T/O   Flags  Addr  Port      Count\n";
+	print "---    ----------    ------ ------  ---   -----  ----  ----      -----\n";
+
+	for (my $i = 0; $i < $max; $i++)
 	{
-	    my $data = $spin->iptag_tto (255);
+	    my $data = $spin->iptag_get ($i, 1);
 
-	    my ($tto, undef, $pool, $fix) = unpack "C4", $data;
-	    my $max = $pool + $fix;
-	    $tto = (1 << ($tto - 1)) / 100 if $tto;
+	    my ($ip, $mac, $tx_port, $timeout, $flags, $count, $rx_port,
+		$spin_addr, $spin_port) = unpack "a4 a6 v3 V v2 C", $data;
 
-	    print "IPTags=$max (F=$fix, T=$pool), TTO=${tto}s\n\n";
-
-	    print "Tag   IP address      Port   T/O   Flags      Count\n";
-	    print "---   ----------      ----   ---   -----      -----\n";
-
-	    for (my $i = 0; $i < $max; $i++)
+	    if ($flags & 0x8000) # Tag in use
 	    {
-		my $data = $spin->iptag_get ($i, 1);
+		$ip = join ".", unpack "C*", $ip;
 
-		my ($ip, $mac, $port, $timeout, $flags, $count, $rx_port,
-		    $spin_addr, $spin_port) = unpack "a4 a6 v3 V v2 C", $data;
-
-		if ($flags & 0x8000) # Tag in use
-		{
-		    $ip = join ".", unpack "C*", $ip;
-
-		    printf "%3d  %-15s  %5d  %-4s  %04x  %10d\n",
-		    $i, $ip, $port, $timeout / 100, $flags, $count;
-		}
+		printf "%3d  %-15s  %5d  %5d  %-4s  %-4s   %04x    %02x %10d\n",
+		    $i, $ip, $tx_port, $rx_port, $timeout / 100, ipflag ($flags),
+		    $spin_addr, $spin_port, $count;
 	    }
-	}
-	elsif ($ac >= 1 && $host eq "-")
-	{
-	    my $tag = ($ac == 2) ? $port : 0;
-	    die "bad tag\n" if $tag < $MIN_TAG || $tag > $MAX_TAG;
-
-	    $spin->iptag_clear ($tag);
-	}
-	else
-	{
-	    $spin->iptag_set ($tag, $host, $port);
 	}
     };
 
     return $@;
 }
+
+
+sub cmd_iptag
+{
+    my $cli = shift;
+    my $ac = $cli->{arg_c};
+
+    return dump_iptag () if $ac == 0;
+
+    my $tag = $cli->{arg_v}->[0];
+    my $cmd = $cli->{arg_v}->[1];
+
+    my $MIN_TAG = 0; # Bodge!
+    my $MAX_TAG = 7;
+
+    return "bad tag" unless $tag =~ /^\d+$/ && $tag >= $MIN_TAG && $tag <= $MAX_TAG;
+    return "bad cmd" unless $cmd =~ /^(set|clear|reverse|strip)$/;
+
+    if ($cmd eq "clear")
+    {
+	eval { $spin->iptag_clear ($tag); };
+	return $@;
+    }
+
+    if ($cmd eq "set" || $cmd eq "strip")
+    {
+	my $host = $cli->{arg_v}->[2];
+	my $port = $cli->{arg_n}->[3];
+	my $strip = $cmd eq "strip";
+
+	return "bad args" if $ac != 4;
+	return "pad port" unless $port;
+
+	eval
+	{
+	    $spin->iptag_set ($tag, $port,
+			      host => $host,
+			      strip => $strip);
+	};
+	return $@;
+    }
+
+    if ($cmd eq "reverse")
+    {
+	my $port = $cli->{arg_n}->[2];
+	my $dest_addr = $cli->{arg_x}->[3];
+	my $dest_port = $cli->{arg_x}->[4];
+
+	return "bad args" if $ac != 5;
+	return "bad args" unless $port && defined $dest_addr &&
+	    defined $dest_port;
+
+	eval
+	{
+	    $spin->iptag_set ($tag, $port,
+			      reverse => 1,
+			      dest_addr => $dest_addr,
+			      dest_port => $dest_port);
+	};
+
+	return $@;
+    }
+
+    return "";
+}
+
 
 #-------------------------------------------------------------------------------
 
@@ -872,7 +929,7 @@ sub global_write
 	return "bad address";
     }
 
-    my $key = ($NN_CMD_SIG1 << 24) + (0 << 20) + ($type << 18) +
+    my $key = ($NN_CMD_SIG1 << 24) + (0 << 20) + ($type << 18) + 
 	($op << 16) + ($addr << 8) + 0; # const
 
     my $fr = (1 << 31) + (0x3f << 8) + 0xf8;
@@ -999,7 +1056,7 @@ sub cpu_dump
         "SYNC0", "SYNC1", "PAUSE", "EXIT",
 	"ST_12", "ST_13", "ST_14", "IDLE");
 
-    my @rte = qw/NONE RESET UNDEF SVC PABT DABT IRQ FIQ VIC
+    my @rte = qw/NONE RESET UNDEF SVC PABT DABT IRQ FIQ VIC 
 		 ABORT MALLOC DIVBY0 EVENT SWERR IOBUF/;
 
     my @mon = qw/Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec/;
@@ -1128,7 +1185,7 @@ sub cmd_ps
 	for (my $vc = 0; $vc < 18; $vc++)
 	{
 	    my $e = cpu_dump ($vc, 0, $fmt);
-	    return $e if $e;
+	    return $e if $e;	
 	}
     }
     else
@@ -1139,7 +1196,7 @@ sub cmd_ps
 	    return $e if $e;
 	}
     }
-
+	
     return "";
 }
 
@@ -1427,7 +1484,7 @@ sub cmd_srom_ip
 			   addr => $srom_info{$srom_type}->{ADDR});
 
 	print "Checking...\n";
-
+    
 	cmd_srom_info (1);
 
 	my $rdata = $spin->srom_read ($addr, $len,
@@ -1511,11 +1568,15 @@ sub cmd_remap
 sub app_dump
 {
     my $data = shift;
+
+    print " ID Cores Clean  Sema  Lead Mask\n";
+    print "--- ----- -----  ----  ---- ----\n";
+
     for (my $i = 0; $i < 256; $i++)
     {
 	my ($cores, $clean, $sema, $lead, $mask) =
 	    unpack "C4 V", substr $data, $i * 8, 8;
-	printf "%3d: %3d %3d %3d %3d %08x\n", $i, $cores, $clean, $sema,
+	printf "%3d %5d %5d %5d %5d %08x\n", $i, $cores, $clean, $sema,
   	  $lead, $mask if $cores != 0 || $clean != 0;
     }
 }
@@ -1553,7 +1614,7 @@ sub rtr_heap
 	my $next = $data->[0];
 	my $free = $data->[1];
 	my $size = ($next == 0) ? 0 : $next - $p;
-
+	
 	my $fs = sprintf "Free %5d", $free;
 	$fs = sprintf "AppID  %3d", $free & 255 if $free & 0x8000;
 
@@ -1748,6 +1809,28 @@ sub cmd_power
 }
 
 
+sub cmd_p2p_route
+{
+    my $cli = shift;
+    my $ac = $cli->{arg_c};
+    my $arg = $cli->{arg_v}->[0];
+
+    return "bad args" if $ac > 1;
+    return "bad args" if $ac == 1 && $arg !~ /^(on|off)$/;
+
+    if ($ac == 0)
+    {
+	printf "Flags 0x%02x\n", $spin->flags;
+	return "";
+    }
+
+    $spin->flags ($spin->flags & ~0x20) if $arg eq "on";
+    $spin->flags ($spin->flags |  0x20) if $arg eq "off";
+
+    return "";
+}
+
+
 #-------------------------------------------------------------------------------
 
 
@@ -1922,8 +2005,11 @@ my $spin_cmds =
 		 "<file.F> <addr.X> <len.X>",
 		 "Dump SpiNNaker memory to file"],
     iptag =>    [\&cmd_iptag,
-		 "<name.S> | '.' | '-' | all <port> <tag>",
-		 "Set up IPTAGs"],
+		 "<tag.D> <cmd.S> args...
+               <tag.D> clear
+               <tag.D> set <host.P> <port.D>
+               <tag.D> reverse <port.D> <address.X> <port.X>",
+		 "Set up IPTags"],
     led =>      [\&cmd_led,
 		 "<0123>* on|off|inv|flip",
 		 "Set/clear LEDs"],
@@ -1960,13 +2046,13 @@ my $spin_cmds =
 my $expert_cmds =
 {
     gw =>        [\&cmd_gw,
-		 "<addr> <data>",
+		 "<addr.X> <data.X>",
 		 "Global word write"],
     gh =>        [\&cmd_gh,
-		 "<addr> <data>",
+		 "<addr.X> <data.X>",
 		 "Global half-word write"],
     gb =>        [\&cmd_gb,
-		 "<addr> <data>",
+		 "<addr.X> <data.X>",
 		 "Global byte write"],
     lmemw =>    [\&cmd_lmemw,
 		 "<link.D> <addr.X>",
@@ -1998,6 +2084,9 @@ my $expert_cmds =
     remap =>     [\&cmd_remap,
 		 "<core.D> [phys|virt]",
 		 "Remove bad core from core map"],
+    p2p_route => [\&cmd_p2p_route,
+		 "[on|off]",
+		 "Control P2P routing"],
     app_dump =>  [\&cmd_app_dump,
 		 "",
 		 "Show app data for this chip"],
@@ -2024,10 +2113,10 @@ sub cmd_expert
 
 sub usage
 {
-    warn "usage: ybug <options> <hostname>[:<port>]\n";
-    warn "  -bmp  <name>[:<port>]    - set BMP target\n";
+    warn "usage: ybug <options> <hostname>\n";
+    warn "  -bmp  <name>[/<slots>]   - set BMP target\n";
     warn "  -version                 - print version number\n";
-    warn "  -norl                    - don't use 'readline'\n";
+    warn "  -norl                    - don't use 'ReadLine'\n";
     warn "  -expert                  - set 'expert' mode\n";
     die  "  -debug                   - set debug variable\n";
 }
@@ -2044,7 +2133,7 @@ sub process_args
 	if ($arg eq "-bmp")
 	{
 	    die "BMP not specified\n" unless $bmp_target = shift @ARGV;
-	    $range = $1 if $bmp_target =~ s/\/(\d+(-\d+)?)$//;
+	    $range = $1 if $bmp_target =~ s/\/(\S+)$//;
 	}
 	elsif ($arg eq "-version")
 	{
@@ -2078,7 +2167,7 @@ sub process_args
     die "bad BMP range\n" unless $bmp_range;
     die "target not specified\n" unless defined $spin_target;
 
-    $spin_port = $1 if $spin_target =~ s/:(\d+)$//;
+#    $spin_port = $1 if $spin_target =~ s/:(\d+)$//;
 
     my $prompt = $spin_target;
     $prompt =~ s/\..+// unless $prompt =~ /^\d/;

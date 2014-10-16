@@ -60,7 +60,7 @@ sub read_file
 
     $file = find_path ($file);
 
-    die "read_file: can't find file\n" unless $file;
+    die "read_file: can't find $file\n" unless $file;
 
     open my $fh, '<', $file or die "read_file: can't open $file\n";
 
@@ -137,7 +137,9 @@ sub read_file
 	    close $fh;
 	    die "read_file: syntax error - $file:$.\n";
 	}
+
     }
+
     close $fh;
 
     print ">> EOF\n" if $debug;

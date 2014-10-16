@@ -113,9 +113,9 @@ sub parse_region
 	       (3 << 16) +
 	       (1 << $m);
     }
-
+	
     $region = "0-15" if lc $region eq "all";
-
+ 
     my @region = split /\./, $region;
     my $level = $#region;
 
@@ -223,7 +223,7 @@ sub read_file
 #   start  - offset of first byte in buffer
 #   length - number of bytes to display (default is size of buffer)
 #   prefix - string printed at start of each line (default "")
-#   asize  - field width of address in output (default 8)
+#   asize  - field width of address in output (default 8) 
 
 sub hex_dump
 {

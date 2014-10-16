@@ -98,10 +98,10 @@ app_data             V  0xe4  %08x  0           # Array of app_data_t
 shm_buf              V  0xe8  %08x  0           # Shared memory SDP buffers
 mbox_flags           V  0xec  %08x  0           # AP->MP communication flags
 
-utmp0                V  0xf0  %08x  0           # Temporaries ...
-utmp1                V  0xf4  %08x  0           #
-utmp2                V  0xf8  %08x  0           #
-utmp3                V  0xfc  %08x  0           #
+ip_addr              V  0xf0  %08x  0           # IP address (or 0)
+utmp0                V  0xf4  %08x  0           #
+utmp1                V  0xf8  %08x  0           #
+utmp2                V  0xfc  %08x  0           #
 
 #-------------------------------------------------------------------------------
 

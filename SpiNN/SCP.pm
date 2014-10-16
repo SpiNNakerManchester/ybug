@@ -11,7 +11,12 @@
 ## Status	    Experimental software - liable to change at any time !!
 ##
 ##------------------------------------------------------------------------------
-
+##
+## History
+##
+## 07aug14 - added delay parameter
+##
+##------------------------------------------------------------------------------
 
 package SpiNN::SCP;
 
@@ -29,7 +34,7 @@ use SpiNN::Util qw/hex_dump/;
 
 my $SPIN_PORT = 17893;
 my $TIMEOUT = 0.5;
-my $RETRIES = 3;
+my $RETRIES = 2;
 my $MAX_CORE = 31;
 
 my $RC_OK = 0x80;
@@ -65,6 +70,7 @@ my %rc = (
 # timeout - the timeout to use when waiting for reply packets
 # retries - the number of retries to use when the target doesn't respond
 # debug   - a debug value (integers > 0 cause debug output - defaults to 0)
+# delay   - delay (seconds) before sending (to throttle packets)
 
 sub new
 {
@@ -75,6 +81,7 @@ sub new
     my $timeout = $opts{timeout} || $TIMEOUT;
     my $retries = $opts{retries} || $RETRIES;
     my $debug = $opts{debug} || 0;
+    my $delay = $opts{delay} || 0;
 
     my $socket;
 
@@ -104,6 +111,7 @@ sub new
     $self->{timeout} = $timeout;
     $self->{retries} = $retries;
     $self->{debug} = $debug;
+    $self->{delay} = $delay;
 
     $self->{buf_size} = 256;
     $self->{nn_id} = 0;
@@ -244,6 +252,7 @@ sub send_sdp
     my $port = $opts{port} || 0;
     my $reply = $opts{reply} || 0;
     my $debug = $opts{debug} || $self->{debug};
+    my $delay = $opts{delay} || $self->{delay};
 
     die "SDP data overflow\n" if length ($data) > $self->{buf_size} + 16;
 
@@ -283,6 +292,8 @@ sub send_sdp
     my $pad = pack "v", 0;
     my $hdr  = pack "C4 v2", $flags, $self->{tag}, $dp, $self->{sp},
                              $da, $self->{sa};
+
+    select (undef, undef, undef, $self->{delay}) if $self->{delay};
 
     my $rc = send ($self->{socket}, $pad . $hdr . $data, 0);
 
@@ -461,9 +472,9 @@ sub scp_cmd
 
 	$tries++;
 
-	print "# Timeout (retry $tries)\n" if $debug;
+	print "# Timeout (attempt $tries)\n" if $debug;
 
-	die "too many retries\n" if $tries == $retries;
+	die "too many retries\n" if $tries == ($retries + 1);
     }
 
     if ($rc != $RC_OK)
@@ -499,6 +510,18 @@ sub debug
     my $v = $self->{debug};
 
     $self->{debug} = $debug if defined $debug;
+
+    return $v;
+}
+
+
+sub flags
+{
+    my ($self, $flags) = @_;
+
+    my $v = $self->{flags};
+
+    $self->{flags} = $flags if defined $flags;
 
     return $v;
 }
