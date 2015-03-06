@@ -87,15 +87,15 @@ sub new
 
     if ($target)
     {
-	$socket = new IO::Socket::INET (PeerAddr => "$target:$port",
-					Proto => "udp",
-					Blocking => 0);
+    $socket = new IO::Socket::INET (PeerAddr => "$target:$port",
+                    Proto => "udp",
+                    Blocking => 0);
     }
     else
     {
-	$socket = new IO::Socket::INET (LocalPort => $port,
-					Proto => "udp",
-					Blocking => 0);
+    $socket = new IO::Socket::INET (LocalPort => $port,
+                    Proto => "udp",
+                    Blocking => 0);
     }
 
     return undef unless $socket;
@@ -151,25 +151,25 @@ sub addr
 
     if ($#_ == 0) # root
     {
-	$self->{X} = $self->{Y} = $self->{C} = 0;
+    $self->{X} = $self->{Y} = $self->{C} = 0;
     }
     elsif ($#_ == 1)
     {
-	die "bad core number\n" if $a1 > $MAX_CORE;
-	$self->{C} = $a1;
+    die "bad core number\n" if $a1 > $MAX_CORE;
+    $self->{C} = $a1;
     }
     elsif ($#_ == 2)
     {
-	($self->{X}, $self->{Y}, $self->{C}) = ($a1, $a2, 0);
+    ($self->{X}, $self->{Y}, $self->{C}) = ($a1, $a2, 0);
     }
     elsif ($#_ == 3)
     {
-	die "bad core number\n" if $a3 > $MAX_CORE;
-	($self->{X}, $self->{Y}, $self->{C}) = ($a1, $a2, $a3);
+    die "bad core number\n" if $a3 > $MAX_CORE;
+    ($self->{X}, $self->{Y}, $self->{C}) = ($a1, $a2, $a3);
     }
     else
     {
-	die "bad address\n";
+    die "bad address\n";
     }
 
     return ($self->{X}, $self->{Y}, $self->{C});
@@ -189,7 +189,7 @@ sub sdp_dump
 
     my $text = $prefix;
 
-    my ($flags, $tag, $dp, $sp, $dx, $dy, $sx, $sy) = unpack "C8", $hdr;
+    my ($flags, $tag, $dp, $sp, $dy, $dx, $sy, $sx) = unpack "C8", $hdr;
 
     $sp = sprintf "%d/%d", $sp >> 5, $sp & 31 if $sp > 31 && $sp != 255;
     $dp = sprintf "%d/%d", $dp >> 5, $dp & 31 if $dp > 31 && $dp != 255;
@@ -225,7 +225,7 @@ sub scp_dump
     $text .= sprintf " \[%d]\n", length ($rest) - 4*$args;
 
     $text .= hex_dump (substr ($rest, 4*$args), asize => 4,
-		       prefix => $prefix) if $pdata && length ($rest) > 4*$args;
+            prefix => $prefix) if $pdata && length ($rest) > 4*$args;
 
     return $text;
 }
@@ -260,26 +260,26 @@ sub send_sdp
 
     if (defined $addr)
     {
-	if ($#$addr == -1)
-	{
-	    ($x, $y, $c) = (0, 0, 0);
-	}
-	elsif ($#$addr == 0)
-	{
-	    ($c) = @$addr;
-	}
-	elsif ($#$addr == 1)
-	{
-	    ($x, $y, $c) = (@$addr, 0);
-	}
-	elsif ($#$addr == 2)
-	{
-	    ($x, $y, $c) = @$addr;
-	}
-	else
-	{
-	    die "bad address\n";
-	}
+    if ($#$addr == -1)
+    {
+        ($x, $y, $c) = (0, 0, 0);
+    }
+    elsif ($#$addr == 0)
+    {
+        ($c) = @$addr;
+    }
+    elsif ($#$addr == 1)
+    {
+        ($x, $y, $c) = (@$addr, 0);
+    }
+    elsif ($#$addr == 2)
+    {
+        ($x, $y, $c) = @$addr;
+    }
+    else
+    {
+        die "bad address\n";
+    }
     }
 
     die "bad core number\n" if $c > $MAX_CORE;
@@ -301,9 +301,9 @@ sub send_sdp
 
     if ($debug >= 3)
     {
-	print sdp_dump ($hdr, $data,
-			data => $debug >= 4,
-			prefix => "#>SDP ");
+    print sdp_dump ($hdr, $data,
+            data => $debug >= 4,
+            prefix => "#>SDP ");
     }
 }
 
@@ -329,10 +329,10 @@ sub send_scp
 
     if ($debug)
     {
-	print scp_dump ($scp_hdr . $data,
-			data => $debug >= 2,
-			args => 3,
-			prefix => "#>SCP ")
+    print scp_dump ($scp_hdr . $data,
+            data => $debug >= 2,
+            args => 3,
+            prefix => "#>SCP ")
     }
 
     $self->send_sdp ($scp_hdr . $data, %opts);
@@ -378,9 +378,9 @@ sub recv_sdp
 
     if ($debug >= 3)
     {
-	print sdp_dump ($self->{sdp_hdr}, $self->{sdp_data},
-			data => $debug >= 4,
-			prefix => "#<SDP ");
+    print sdp_dump ($self->{sdp_hdr}, $self->{sdp_data},
+            data => $debug >= 4,
+            prefix => "#<SDP ");
     }
 
     return 1;
@@ -409,9 +409,9 @@ sub recv_scp
 
     if ($debug)
     {
-	print scp_dump ($self->{sdp_data},
-			data => $debug >= 2,
-			prefix => "#<SCP ");
+    print scp_dump ($self->{sdp_data},
+            data => $debug >= 2,
+            prefix => "#<SCP ");
     }
 
     return $self->{cmd_rc}
@@ -463,24 +463,24 @@ sub scp_cmd
 
     while (1)
     {
-	$self->send_scp ($cmd, $arg1, $arg2, $arg3, $data,
-			 addr => $addr, port => $port, reply => 1);
+    $self->send_scp ($cmd, $arg1, $arg2, $arg3, $data,
+            addr => $addr, port => $port, reply => 1);
 
-	$rc = $self->recv_scp (timeout => $timeout, debug => $debug);
+    $rc = $self->recv_scp (timeout => $timeout, debug => $debug);
 
-	last if defined $rc;
+    last if defined $rc;
 
-	$tries++;
+    $tries++;
 
-	print "# Timeout (attempt $tries)\n" if $debug;
+    print "# Timeout (attempt $tries)\n" if $debug;
 
-	die "too many retries\n" if $tries == ($retries + 1);
+    die "too many retries\n" if $tries == ($retries + 1);
     }
 
     if ($rc != $RC_OK)
     {
-	$rc = $rc{$rc} || sprintf "0x%02x", $rc;
-	die "error $rc\n"
+    $rc = $rc{$rc} || sprintf "0x%02x", $rc;
+    die "error $rc\n"
     }
 
     return substr ($self->{sdp_data}, 4) unless $unpack;
@@ -557,7 +557,7 @@ sub dump_self
 
     for my $key (sort keys %$self)
     {
-	printf "%-16s %s\n", $key, $self->{$key};
+    printf "%-16s %s\n", $key, $self->{$key};
     }
 }
 
