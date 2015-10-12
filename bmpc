@@ -1927,7 +1927,11 @@ sub process_args
 	{
 	    $readline = 0;
 	}
-	elsif ($arg !~ /^-/)
+	elsif ($arg eq "-bmp_port")
+	{
+	    die "BMP port not specified\n" unless $bmp_port = shift @ARGV;
+	}
+    elsif ($arg !~ /^-/)
 	{
 	    $bmp_target = $arg;
 	}

@@ -50,19 +50,18 @@ sub boot_pkt
 
 sub rom_boot
 {
-    my ($host, $buf, $sv, $time, $debug) = @_;
+    my ($host, $buf, $sv, $time, $debug, $port) = @_;
 
     my $BOOT_WORD_SIZE = 256;	# 256 words
     my $BOOT_BYTE_SIZE = 1024;	# 1024 bytes
     my $MAX_BLOCKS = 32;	# 32k limit in DTCM
-    my $PORT = 54321;
 
     my $delay = 0.01;
 
-    my $socket = new IO::Socket::INET (PeerAddr => "$host:$PORT",
+    my $socket = new IO::Socket::INET (PeerAddr => "$host:$port",
 				       Proto => 'udp');
 
-    die "can't connect to \"$host:$PORT\"\n" unless $socket;
+    die "can't connect to \"$host:$port\"\n" unless $socket;
 
     my $size = length $buf;
 
@@ -104,7 +103,7 @@ sub rom_boot
 
 sub scamp_boot
 {
-    my ($host, $buf, $sv, $time, $debug) = @_;
+    my ($host, $buf, $sv, $time, $debug, $port) = @_;
 
     my $spin = SpiNN::Cmd->new (target => $host, debug => $debug);
 
@@ -151,6 +150,7 @@ sub boot
     my ($class, $host, $file, $conf, %opts) = @_;
 
     my $debug = $opts{debug} || 0;
+    my $port = $opts{port} || 54321;
 
     my $sv = SpiNN::Struct->new;
     die "failed to process \"sv\" struct file\n" unless $sv;
@@ -170,7 +170,7 @@ sub boot
 
 	substr $buf, 384, 128, substr ($sv->pack ("sv"), 0, 128);
 
-	rom_boot ($host, $buf, $sv, $time, $debug);
+	rom_boot ($host, $buf, $sv, $time, $debug, $port);
     }
     elsif ($file =~ /\.aplx$/)
     {
@@ -178,7 +178,7 @@ sub boot
 
 	substr $buf, 384, 128, substr ($sv->pack ("sv"), 0, 128);
 
-	scamp_boot ($host, $buf, $sv, $time, $debug);
+	scamp_boot ($host, $buf, $sv, $time, $debug, $port);
     }
     else
     {

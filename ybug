@@ -52,6 +52,7 @@ my $bmp_range;		# BMP ID range
 
 my $spin_port = 17893;	# UDP port for SpiNNaker
 my $bmp_port  = 17893;	# UDP port for BMP
+my $boot_port = 54321;  # UDP port for boot
 my $TUBE_PORT = 17892;	# UDP port for Tubotron
 
 my $APP_MIN = 16;	# Minimum user AppId
@@ -96,7 +97,7 @@ sub cmd_boot
 
     eval
     {
-	SpiNN::Boot->boot ($spin_target, $file, $conf, debug => $debug);
+	SpiNN::Boot->boot ($spin_target, $file, $conf, debug => $debug, port => $boot_port);
 
 	my $s = $spin->ver (addr => []);
 	$s =~ s/ at .*//;
@@ -2147,6 +2148,18 @@ sub process_args
 	elsif ($arg eq "-norl")
 	{
 	    $readline = 0;
+	}
+	elsif ($arg eq "-port")
+	{
+	    die "Port not specified\n" unless $spin_port = shift @ARGV;
+	}
+	elsif ($arg eq "-bmp_port")
+	{
+	    die "BMP port not specified\n" unless $bmp_port = shift @ARGV;
+	}
+	elsif ($arg eq "-boot_port")
+	{
+	    die "Boot port not specified\n" unless $boot_port = shift @ARGV;
 	}
 	elsif ($arg eq "-expert")
 	{
