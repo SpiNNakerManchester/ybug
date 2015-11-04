@@ -40,6 +40,7 @@ my $bmp;		# SpiNN::Cmd object for BMP (or undef)
 my $cli;		# SpiNN::CLI object
 
 my $sv;			# SpiNN::Struct object
+my $sark_data;          # Struct containing sark information
 
 my $debug = 0;		# Enable verbosity
 my $expert = 0;		# Expert mode
@@ -486,6 +487,12 @@ sub cmd_heap
 	    my $sys_heap  = $sv->read_var ("sv.sys_heap");
 	    dump_heap ($sys_heap, "System");
 	}
+
+        if ($ac == 0 || $ac == 1 && $arg1 eq "dtcm")
+        {
+            my $heap  = $sark_data->read_var ("sark_data.heap");
+            dump_heap ($heap, "DTCM");
+        }
 
 	print "\n";
     };
@@ -2201,6 +2208,10 @@ sub open_targets
     $sv = SpiNN::Struct->new (scp => $spin);
 
     die "Error reading structs\n" unless $sv;
+
+    $sark_data = SpiNN::Struct->new (scp => $spin);
+
+    die "Error reading structs\n" unless $sark_data;
 
     if (defined $bmp_target)
     {
