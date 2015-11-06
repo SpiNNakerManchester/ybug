@@ -2022,7 +2022,7 @@ my $spin_cmds =
 		 "<0123>* on|off|inv|flip",
 		 "Set/clear LEDs"],
     heap =>      [\&cmd_heap,
-		 "sdram|sysram|system",
+		 "sdram|sysram|system|dtcm",
 		 "Dump heaps"],
     reset =>     [\&cmd_reset,
 		 "",
